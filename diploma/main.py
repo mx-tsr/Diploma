@@ -6,8 +6,10 @@ import time
 ''' To DO:
 Идея, что сейчас нужно сделать:
 1. Получить релевантную статью по заданной теме
-2. По ее ID скачать ее и сохрнаить в папку
+2. По ее ID скачать ее и сохранить в папку
 3. Извлечь из PDF текст и сохранить его в txt файл
+
+Пока что с sematic Scolar API хрень какая-то, не могу понять, что не так. Надо попробовать с arXiv API. 
 
 4. Собрать все тексты статей в txt файлы (не json?)
 5. Подумать, как сформировать промпт, в который можно будет подавать много текста, возможно текст одной статьи - это много. 
@@ -20,23 +22,6 @@ import time
 P.S. Насчет того, что писать в результатах. Возможно сравнивать не просто с ручным анализом, а с ручным анализом + обращение к нейронке.
 Плюсом описать, почему агенты круче, чем такой подход (такие статьи есть). 
 '''
-
-# def get_paper(paper_id: str, fields):
-#     params = {
-#         'fields': fields
-#     }
-#     headers = {}
-
-#     response = requests.get(
-#     f'https://api.semanticscholar.org/graph/v1/paper/{paper_id}',
-#     headers=headers,
-#     params=params
-#     )
-
-#     response.raise_for_status()
-#     time.sleep(1.0)
-#     return response.json()
-
 
 def download_pdf(url, path, user_agent = 'requests/2.0.0'):
     # send a user-agent to avoid server error
@@ -86,7 +71,7 @@ def download_paper(paper, directory='papers', user_agent='requests/2.0.0'):
     return pdf_path
 
 
-def search_for_papers(query, result_limit=15):
+def search_for_papers(query, result_limit=10, offset=0):
     if not query:
         return None
     response = requests.get(
@@ -95,8 +80,8 @@ def search_for_papers(query, result_limit=15):
         params={
             "query": query,
             "limit": result_limit,
-            "fields": "paperId,title,abstract,isOpenAccess,openAccessPdf,externalIds",
-            "isOpenAccess": True
+            "offset": offset,
+            "fields": "paperId,title,abstract,isOpenAccess,openAccessPdf,externalIds"
         },
     )
     response.raise_for_status()
@@ -106,12 +91,23 @@ def search_for_papers(query, result_limit=15):
     return papers
 
 
+def search_for_papers_with_retry(query, result_limit=10, offset=0, max_retries=3):
+     for attempt in range(max_retries):
+        try:
+            return search_for_papers(query, result_limit, offset)
+        except requests.exceptions.RequestException as e:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(min(2 ** (attempt + 1), 60))  # Exponential backoff with a maximum wait time of 60 seconds
+            print(f"Request failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying...")
+
+
 query = 'science automation using agentic systems'
-papers = search_for_papers(query)
+papers = search_for_papers_with_retry(query, result_limit=10, offset=20, max_retries=4)
 print(papers)
 
-# for paper in papers:
-#     try:
-#         result = download_paper(paper)
-#     except Exception as e:
-#         print(f'Error downloading paper {paper["paperId"]}: {e}')
+for paper in papers:
+    try:
+        result = download_paper(paper)
+    except Exception as e:
+        print(f'Error downloading paper {paper["paperId"]}: {e}')

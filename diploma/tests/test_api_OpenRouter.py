@@ -10,7 +10,7 @@ def get_response_from_llm(role, prompt):
         url="https://openrouter.ai/api/v1/chat/completions",
         headers={
             # My personal API - should move to .env
-            "Authorization": "Bearer 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",
+            "Authorization": "",
             "Content-Type": "application/json"
         },
         data=json.dumps({
